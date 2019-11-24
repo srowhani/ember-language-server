@@ -114,6 +114,21 @@ export default class Server {
     this.connection.listen();
   }
 
+  // Addon API allow patch this object to get more capabilities inside onInit method
+  capabilities = {
+    // Tell the client that the server works in FULL text document sync mode
+    definitionProvider: true,
+    executeCommandProvider: {
+      commands: ['els:registerProjectPath']
+    },
+    documentSymbolProvider: true,
+    referencesProvider: true,
+    completionProvider: {
+      resolveProvider: true,
+      triggerCharacters: ['.', '::', '=', '/', '{{', '(', '<', '@', 'this.']
+    }
+  };
+
   // After the server has started the client sends an initilize request. The server receives
   // in the passed params the rootPath of the workspace plus the client capabilites.
   private onInitialize({ rootUri, rootPath }: InitializeParams): InitializeResult {
@@ -129,20 +144,9 @@ export default class Server {
     // this.setStatusText('Initialized');
 
     return {
-      capabilities: {
-        // Tell the client that the server works in FULL text document sync mode
-        textDocumentSync: this.documents.syncKind,
-        definitionProvider: true,
-        executeCommandProvider: {
-          commands: ['els:registerProjectPath']
-        },
-        documentSymbolProvider: true,
-        referencesProvider: true,
-        completionProvider: {
-          resolveProvider: true,
-          triggerCharacters: ['.', '::', '=', '/', '{{', '(', '<', '@', 'this.']
-        }
-      }
+      capabilities: Object.assign({}, this.capabilities, {
+        textDocumentSync: this.documents.syncKind
+      })
     };
   }
 
