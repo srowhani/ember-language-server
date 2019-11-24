@@ -34,10 +34,12 @@ export interface DefinitionFunctionParams extends ExtendedAPIParams {
 type ReferenceResolveFunction = (root: string, params: ReferenceFunctionParams) => Promise<Location[]>;
 type CompletionResolveFunction = (root: string, params: CompletionFunctionParams) => Promise<CompletionItem[]>;
 type DefinitionResolveFunction = (root: string, params: DefinitionFunctionParams) => Promise<Location[]>;
+type InitCallback = (root: string, server: Server) => void;
 export interface AddonAPI {
   onReference: undefined | ReferenceResolveFunction;
   onComplete: undefined | CompletionResolveFunction;
   onDefinition: undefined | DefinitionResolveFunction;
+  onInit: undefined | InitCallback;
 }
 
 interface HandlerObject {
@@ -45,6 +47,7 @@ interface HandlerObject {
     onReference: undefined | Promise<any[] | null>;
     onComplete: undefined | Promise<any[] | null>;
     onDefinition: undefined | Promise<Definition | null>;
+    onInit: undefined | InitCallback;
   };
   packageRoot: string;
   packageJSON: any;
@@ -75,7 +78,8 @@ export function initBuiltinProviders(): ProjectProviders {
   return {
     definitionProviders: [scriptDefinition.onDefinition.bind(scriptDefinition), templateDefinition.onDefinition.bind(templateDefinition)],
     referencesProviders: [],
-    completionProviders: [scriptCompletion.onComplete.bind(scriptCompletion), templateCompletion.onComplete.bind(templateCompletion)]
+    completionProviders: [scriptCompletion.onComplete.bind(scriptCompletion), templateCompletion.onComplete.bind(templateCompletion)],
+    initHandlers: []
   };
 }
 
@@ -97,10 +101,11 @@ export function collectProjectProviders(root: string): ProjectProviders {
     }
   });
 
-  const result = {
+  const result: ProjectProviders = {
     definitionProviders: [],
     referencesProviders: [],
-    completionProviders: []
+    completionProviders: [],
+    initHandlers: []
   };
 
   // onReference, onComplete, onDefinition
@@ -118,6 +123,9 @@ export function collectProjectProviders(root: string): ProjectProviders {
     if (handlerObject.capabilities.definitionProvider && typeof handlerObject.handler.onDefinition === 'function') {
       result.definitionProviders.push(handlerObject.handler.onDefinition);
     }
+    if (typeof handlerObject.handler.onInit === 'function') {
+      result.initHandlers.push(handlerObject.handler.onInit);
+    }
   });
 
   return result;
@@ -129,6 +137,7 @@ export interface ProjectProviders {
   definitionProviders: ThenableHandler[];
   referencesProviders: ThenableHandler[];
   completionProviders: ThenableHandler[];
+  initHandlers: InitCallback[];
 }
 
 interface ExtensionCapabilities {

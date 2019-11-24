@@ -105,7 +105,7 @@ export default class Server {
 
   onExecute(params: string[]) {
     if (params[0] === 'els:registerProjectPath') {
-      this.projectRoots.onProjectAdd(params[1]);
+      this.projectRoots.onProjectAdd(params[1], this);
     }
     return params;
   }
@@ -124,7 +124,7 @@ export default class Server {
 
     log(`Initializing Ember Language Server at ${rootPath}`);
 
-    this.projectRoots.initialize(rootPath);
+    this.projectRoots.initialize(rootPath, this);
 
     // this.setStatusText('Initialized');
 
