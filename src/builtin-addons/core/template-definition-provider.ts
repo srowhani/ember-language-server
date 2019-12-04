@@ -20,6 +20,8 @@ import {
 import { kebabCase } from 'lodash';
 import * as memoize from 'memoizee';
 
+const TEMPLATE_COMPONENT_NAMESPACE_DELIMITERS = ['$'];
+
 const mAddonPathsForComponentTemplates = memoize(getAddonPathsForComponentTemplates, { length: 2, maxAge: 600000 });
 
 function normalizeAngleTagName(tagName: string) {
@@ -27,6 +29,17 @@ function normalizeAngleTagName(tagName: string) {
     .split('::')
     .map((item: string) => kebabCase(item))
     .join('/');
+}
+
+function maybeLocalizeComponentName(componentName: string) {
+  const componentDelimiter = TEMPLATE_COMPONENT_NAMESPACE_DELIMITERS.find((delimiter) => componentName.includes(delimiter));
+
+  if (componentDelimiter !== undefined) {
+    const delimiterOffset = componentName.indexOf(componentDelimiter) + 1;
+    return componentName.substring(delimiterOffset);
+  }
+
+  return componentName;
 }
 
 export function provideComponentTemplatePaths(root: string, rawComponentName: string) {
@@ -182,16 +195,16 @@ export default class TemplateDefinitionProvider {
     return pathsToLocationsWithPosition(paths, text.replace('this.', '').split('.')[0]);
   }
   provideComponentDefinition(root: string, maybeComponentName: string): Location[] {
-    let helpers = getAbstractHelpersParts(root, 'app', maybeComponentName).map((pathParts: any) => {
-      return path.join.apply(path, pathParts.filter((part: any) => !!part));
-    });
+    const resolvedComponentName = maybeLocalizeComponentName(maybeComponentName);
 
-    let paths = [...getPathsForComponentScripts(root, maybeComponentName), ...getPathsForComponentTemplates(root, maybeComponentName), ...helpers].filter(
+    const helpers = getAbstractHelpersParts(root, 'app', resolvedComponentName).map((pathParts: string[]) => path.join(...pathParts.filter(Boolean)));
+
+    let paths = [...getPathsForComponentScripts(root, resolvedComponentName), ...getPathsForComponentTemplates(root, resolvedComponentName), ...helpers].filter(
       fs.existsSync
     );
 
     if (!paths.length) {
-      paths = mAddonPathsForComponentTemplates(root, maybeComponentName);
+      paths = mAddonPathsForComponentTemplates(root, resolvedComponentName);
     }
 
     return pathsToLocations.apply(null, paths.length > 1 ? paths.filter(isTemplatePath) : paths);
