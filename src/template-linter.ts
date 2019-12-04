@@ -1,6 +1,8 @@
 import { Diagnostic, Files, TextDocument } from 'vscode-languageserver';
-import { hasExtension } from './utils/file-extension';
+import { getExtension } from './utils/file-extension';
 import { toDiagnostic } from './utils/diagnostic';
+import { searchAndExtractHbs } from 'extract-tagged-template-literals';
+import { log } from './utils/logger';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -19,14 +21,17 @@ export interface TemplateLinterError {
   source?: string;
 }
 
-export default class TemplateLinter {
+const extensionsToLint: string[] = ['.hbs', '.js', '.ts'];
 
+export default class TemplateLinter {
   private _linterCache = new Map<Project, any>();
 
   constructor(private server: Server) {}
 
   async lint(textDocument: TextDocument) {
-    if (!hasExtension(textDocument, '.hbs')) {
+    const ext = getExtension(textDocument);
+
+    if (ext !== null && !extensionsToLint.includes(ext)) {
       return;
     }
 
@@ -37,18 +42,23 @@ export default class TemplateLinter {
     }
 
     const TemplateLinter = await this.getLinter(textDocument.uri);
-    const linter = new TemplateLinter(config);
 
-    const source = textDocument.getText();
+    let linter = null;
+    try {
+      linter = new TemplateLinter(config);
+    } catch (e) {
+      return;
+    }
+
+    const documentContent = textDocument.getText();
+    const source = ext === '.hbs' ? documentContent : searchAndExtractHbs(documentContent);
 
     const errors = linter.verify({
       source,
       moduleId: textDocument.uri
     });
 
-    const diagnostics: Diagnostic[] = errors.map((error: TemplateLinterError) =>
-      toDiagnostic(source, error)
-    );
+    const diagnostics: Diagnostic[] = errors.map((error: TemplateLinterError) => toDiagnostic(source, error));
 
     this.server.connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
   }
@@ -78,11 +88,27 @@ export default class TemplateLinter {
     }
 
     try {
-      const linter = await (Files.resolveModule(project.root, 'ember-template-lint') as Promise<any>);
+      let nodePath = Files.resolveGlobalNodePath();
+      if (!nodePath) {
+        return;
+      }
+      // vs-code-online fix (we don't have global path, but it returned)
+      if (!fs.existsSync(nodePath)) {
+        // easy fix case
+        nodePath = 'node_modules';
+        if (!fs.existsSync(path.join(project.root, nodePath))) {
+          return;
+        }
+      }
+      const linterPath = await (Files.resolveModulePath(project.root, 'ember-template-lint', nodePath, () => {}) as Promise<any>);
+      if (!linterPath) {
+        return;
+      }
+      const linter = require(linterPath);
       this._linterCache.set(project, linter);
       return linter;
     } catch (error) {
-      console.log('Module ember-template-lint not found.');
+      log('Module ember-template-lint not found.');
     }
   }
 }

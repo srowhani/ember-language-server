@@ -1,17 +1,15 @@
 import { SymbolInformation, SymbolKind } from 'vscode-languageserver';
-import { parse } from 'babylon';
+import { parseScriptFile as parse } from 'ember-meta-explorer';
 import DocumentSymbolProvider from './document-symbol-provider';
 import { toLSRange } from '../estree-utils';
 
-const types = require('ast-types');
+import types from 'ast-types';
 
 export default class JSDocumentSymbolProvider implements DocumentSymbolProvider {
   extensions: string[] = ['.js'];
 
   process(content: string): SymbolInformation[] {
-    const ast = parse(content, {
-      sourceType: 'module'
-    });
+    const ast = parse(content);
 
     let symbols: SymbolInformation[] = [];
 
@@ -23,7 +21,7 @@ export default class JSDocumentSymbolProvider implements DocumentSymbolProvider 
         symbols.push(symbol);
 
         this.traverse(path);
-      },
+      }
     });
 
     return symbols;
